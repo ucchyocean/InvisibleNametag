@@ -1,0 +1,31 @@
+name: ${project.name}
+version: ${project.version}
+main: com.github.ucchyocean.in.InvisibleNametag
+description: Invisible Nametag
+author: ucchy
+
+commands:
+  invname:
+    description: InvisibleNametag Plugin Command
+    aliases: [in]
+    usage: |
+           /<command> on - set invisible nametag of all players.
+           /<command> off - set visible nametag of all players.
+    permission: invisiblenametag.command
+    permission-message: 'You don''t have permission "<permission>".'
+
+permissions:
+  invisiblenametag.command:
+    description: Allows to use command.
+    default: true
+  invisiblenametag.on:
+    description: Allows to use on command.
+    default: op
+  invisiblenametag.off:
+    description: Allows to use off command.
+    default: op
+  'invisiblenametag.*':
+    children:
+      invisiblenametag.command: true
+      invisiblenametag.on: true
+      invisiblenametag.off: true
