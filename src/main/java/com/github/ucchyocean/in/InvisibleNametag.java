@@ -5,6 +5,7 @@
  */
 package com.github.ucchyocean.in;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import org.bukkit.Bukkit;
@@ -46,10 +47,15 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         getServer().getPluginManager().registerEvents(this, this);
 
         // reloadが実行されたときに、reload前に機能が有効化されていたなら、
-        // onEnableのタイミングで全員のネームタグを非表示にする
+        // 対象プレイヤーのネームタグを非表示にする
+        for ( String name : getEnabledPlayers() ) {
+            Player target = getPlayer(name);
+            if ( target != null ) {
+                setSquid(target);
+            }
+        }
         if ( isAllEnabled() ) {
             setSquidAll();
-            getLogger().info("Reloaded squid.");
         }
     }
 
@@ -70,18 +76,62 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
 
         if ( args.length >= 1 && args[0].equalsIgnoreCase("on") ) {
 
+            if ( !sender.hasPermission("invisiblenametag.on") ) {
+                sender.sendMessage(ChatColor.RED + "You don't have permission \"invisiblenametag.on\"");
+                return true;
+            }
+
+            if ( args.length >= 2 ) {
+
+                String name = args[1];
+                Player target = getPlayer(name);
+                if ( target == null ) {
+                    sender.sendMessage(ChatColor.RED +
+                            "Specified player " + name + " is not found.");
+                    return true;
+                }
+
+                setSquid(target);
+                addEnabledPlayers(name);
+                sender.sendMessage(ChatColor.YELLOW + "set invisible nametag of " + name + ".");
+                return true;
+            }
+
             setSquidAll();
             setAllEnabled(true);
+            addAllEnabledPlayers();
             sender.sendMessage(ChatColor.YELLOW + "set invisible nametag of all players.");
             return true;
         }
 
         if ( args.length >= 1 && args[0].equalsIgnoreCase("off") ) {
 
+            if ( !sender.hasPermission("invisiblenametag.off") ) {
+                sender.sendMessage(ChatColor.RED + "You don't have permission \"invisiblenametag.off\"");
+                return true;
+            }
+
+            if ( args.length >= 2 ) {
+
+                String name = args[1];
+                Player target = getPlayer(name);
+                if ( target == null ) {
+                    sender.sendMessage(ChatColor.RED +
+                            "Specified player " + name + " is not found.");
+                    return true;
+                }
+
+                removeSquid(target);
+                removeEnabledPlayers(name);
+                sender.sendMessage(ChatColor.YELLOW + "set visible nametag of " + name + ".");
+                return true;
+            }
+
             removeSquidAll();
             removeGarbageSquid();
             setAllEnabled(false);
-            sender.sendMessage(ChatColor.YELLOW + "set invisible nametag of all players.");
+            removeAllEnabledPlayers();
+            sender.sendMessage(ChatColor.YELLOW + "set visible nametag of all players.");
             return true;
         }
 
@@ -106,10 +156,10 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
 
-        // 全員のネームタグ非表示が設定されているなら、
-        // リスポーンの1tick後にイカを載せ直す。
+        // 必要に応じて、リスポーンの1tick後にイカを載せ直す。
 
-        if ( !isAllEnabled() ) {
+        if ( !isAllEnabled() &&
+                !getEnabledPlayers().contains(event.getPlayer().getName()) ) {
             return;
         }
 
@@ -135,10 +185,10 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
 
-        // 全員のネームタグ非表示が設定されているなら、
-        // 新しく参加したプレイヤーにイカを載せる
+        // 必要に応じて、新しく参加したプレイヤーにイカを載せる
 
-        if ( !isAllEnabled() ) {
+        if ( !isAllEnabled() &&
+                !getEnabledPlayers().contains(event.getPlayer().getName()) ) {
             return;
         }
 
@@ -246,16 +296,31 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
+     * 指定した名前のプレイヤーを取得する
+     * @param name プレイヤー名
+     * @return プレイヤー
+     */
+    private Player getPlayer(String name) {
+
+        for ( Player player : Bukkit.getOnlinePlayers() ) {
+            if ( player.getName().equalsIgnoreCase(name) ) {
+                return player;
+            }
+        }
+        return null;
+    }
+
+    /**
      * @return isAllEnabled
      */
-    public boolean isAllEnabled() {
+    private boolean isAllEnabled() {
         return getConfig().getBoolean("isAllEnabled", false);
     }
 
     /**
      * @param isAllEnabled isAllEnabled
      */
-    public void setAllEnabled(boolean isAllEnabled) {
+    private void setAllEnabled(boolean isAllEnabled) {
         getConfig().set("isAllEnabled", isAllEnabled);
         saveConfig();
     }
@@ -263,15 +328,61 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     /**
      * @return enabledPlayers
      */
-    public List<String> getEnabledPlayers() {
+    private List<String> getEnabledPlayers() {
         return getConfig().getStringList("enabledPlayers");
     }
 
     /**
-     * @param enabledPlayers enabledPlayers
+     * @param name
      */
-    public void setEnabledPlayers(List<String> enabledPlayers) {
-        getConfig().set("enabledPlayers", enabledPlayers);
+    private void addEnabledPlayers(String name) {
+
+        List<String> list = getEnabledPlayers();
+        if ( list.contains(name) ) {
+            return;
+        }
+        list.add(name);
+        getConfig().set("enabledPlayers", list);
+        saveConfig();
+    }
+
+    /**
+     *
+     */
+    private void addAllEnabledPlayers() {
+
+        List<String> list = new ArrayList<String>();
+        for ( Player player : Bukkit.getOnlinePlayers() ) {
+            list.add(player.getName());
+        }
+        getConfig().set("enabledPlayers", list);
+        saveConfig();
+    }
+
+    /**
+     * @param name
+     */
+    private void removeEnabledPlayers(String name) {
+
+        List<String> list = getEnabledPlayers();
+        if ( !list.contains(name) ) {
+            return;
+        }
+        list.add(name);
+        getConfig().set("enabledPlayers", list);
+        saveConfig();
+    }
+
+    /**
+     *
+     */
+    private void removeAllEnabledPlayers() {
+
+        List<String> list = getEnabledPlayers();
+        if ( list.isEmpty() ) {
+            return;
+        }
+        getConfig().set("enabledPlayers", new ArrayList<String>());
         saveConfig();
     }
 

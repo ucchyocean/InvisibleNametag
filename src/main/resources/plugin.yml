@@ -10,7 +10,9 @@ commands:
     aliases: [in]
     usage: |
            /<command> on - set invisible nametag of all players.
+           /<command> on (player) - set invisible nametag of specified player.
            /<command> off - set visible nametag of all players.
+           /<command> off (player) - set visible nametag of specified player.
     permission: invisiblenametag.command
     permission-message: 'You don''t have permission "<permission>".'
 
