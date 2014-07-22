@@ -69,6 +69,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
+     * プラグインのコマンドが実行されたときに呼び出されるメソッド
      * @see org.bukkit.plugin.java.JavaPlugin#onCommand(org.bukkit.command.CommandSender, org.bukkit.command.Command, java.lang.String, java.lang.String[])
      */
     @Override
@@ -182,6 +183,10 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         removeSquid(event.getPlayer());
     }
 
+    /**
+     * プレイヤーがサーバーに参加するときに呼び出されるメソッド
+     * @param event
+     */
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
 
