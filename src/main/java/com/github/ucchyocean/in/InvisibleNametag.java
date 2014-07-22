@@ -5,6 +5,8 @@
  */
 package com.github.ucchyocean.in;
 
+import java.util.List;
+
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -31,8 +33,6 @@ import org.bukkit.scheduler.BukkitRunnable;
  */
 public class InvisibleNametag extends JavaPlugin implements Listener {
 
-    private static boolean isAllEnable;
-
     /**
      * プラグインが起動したときに呼び出されるメソッド
      * @see org.bukkit.plugin.java.JavaPlugin#onEnable()
@@ -40,13 +40,16 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
 
+        saveDefaultConfig();
+
         // イベントリスナーとして登録
         getServer().getPluginManager().registerEvents(this, this);
 
         // reloadが実行されたときに、reload前に機能が有効化されていたなら、
         // onEnableのタイミングで全員のネームタグを非表示にする
-        if ( isAllEnable ) {
+        if ( isAllEnabled() ) {
             setSquidAll();
+            getLogger().info("Reloaded squid.");
         }
     }
 
@@ -68,7 +71,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         if ( args.length >= 1 && args[0].equalsIgnoreCase("on") ) {
 
             setSquidAll();
-            isAllEnable = true;
+            setAllEnabled(true);
             sender.sendMessage(ChatColor.YELLOW + "set invisible nametag of all players.");
             return true;
         }
@@ -77,7 +80,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
 
             removeSquidAll();
             removeGarbageSquid();
-            isAllEnable = false;
+            setAllEnabled(false);
             sender.sendMessage(ChatColor.YELLOW + "set invisible nametag of all players.");
             return true;
         }
@@ -106,7 +109,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         // 全員のネームタグ非表示が設定されているなら、
         // リスポーンの1tick後にイカを載せ直す。
 
-        if ( !isAllEnable ) {
+        if ( !isAllEnabled() ) {
             return;
         }
 
@@ -135,7 +138,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         // 全員のネームタグ非表示が設定されているなら、
         // 新しく参加したプレイヤーにイカを載せる
 
-        if ( !isAllEnable ) {
+        if ( !isAllEnabled() ) {
             return;
         }
 
@@ -224,6 +227,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
      */
     private void removeGarbageSquid() {
 
+        int count = 0;
         for ( World world : Bukkit.getWorlds() ) {
             for ( Entity entity : world.getEntities() ) {
                 if ( entity.getType() == EntityType.SQUID ) {
@@ -232,9 +236,43 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
                     if ( squid.hasPotionEffect(PotionEffectType.INVISIBILITY) &&
                             (vehicle == null || vehicle.getType() != EntityType.PLAYER) ) {
                         squid.remove();
+                        count++;
                     }
                 }
             }
         }
+
+        getLogger().info("Removed " + count + " garbage squids.");
     }
+
+    /**
+     * @return isAllEnabled
+     */
+    public boolean isAllEnabled() {
+        return getConfig().getBoolean("isAllEnabled", false);
+    }
+
+    /**
+     * @param isAllEnabled isAllEnabled
+     */
+    public void setAllEnabled(boolean isAllEnabled) {
+        getConfig().set("isAllEnabled", isAllEnabled);
+        saveConfig();
+    }
+
+    /**
+     * @return enabledPlayers
+     */
+    public List<String> getEnabledPlayers() {
+        return getConfig().getStringList("enabledPlayers");
+    }
+
+    /**
+     * @param enabledPlayers enabledPlayers
+     */
+    public void setEnabledPlayers(List<String> enabledPlayers) {
+        getConfig().set("enabledPlayers", enabledPlayers);
+        saveConfig();
+    }
+
 }
