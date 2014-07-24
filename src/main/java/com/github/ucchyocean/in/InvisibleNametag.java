@@ -5,6 +5,8 @@
  */
 package com.github.ucchyocean.in;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,6 +15,7 @@ import org.bukkit.ChatColor;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.Player;
@@ -34,6 +37,11 @@ import org.bukkit.scheduler.BukkitRunnable;
  */
 public class InvisibleNametag extends JavaPlugin implements Listener {
 
+    private static final String DATA_FILE_NAME = "data.yml";
+
+    private File data_file;
+    private YamlConfiguration data;
+
     /**
      * プラグインが起動したときに呼び出されるメソッド
      * @see org.bukkit.plugin.java.JavaPlugin#onEnable()
@@ -41,7 +49,18 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @Override
     public void onEnable() {
 
-        saveDefaultConfig();
+        // データファイルの準備
+        if ( !getDataFolder().exists() || !getDataFolder().isDirectory() ) {
+            getDataFolder().mkdirs();
+        }
+
+        data_file = new File(getDataFolder(), DATA_FILE_NAME);
+        if ( data_file.exists() ) {
+            data = YamlConfiguration.loadConfiguration(data_file);
+        } else {
+            data = new YamlConfiguration();
+            saveData();
+        }
 
         // イベントリスナーとして登録
         getServer().getPluginManager().registerEvents(this, this);
@@ -319,22 +338,22 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
      * @return isAllEnabled
      */
     private boolean isAllEnabled() {
-        return getConfig().getBoolean("isAllEnabled", false);
+        return data.getBoolean("isAllEnabled", false);
     }
 
     /**
      * @param isAllEnabled isAllEnabled
      */
     private void setAllEnabled(boolean isAllEnabled) {
-        getConfig().set("isAllEnabled", isAllEnabled);
-        saveConfig();
+        data.set("isAllEnabled", isAllEnabled);
+        saveData();
     }
 
     /**
      * @return enabledPlayers
      */
     private List<String> getEnabledPlayers() {
-        return getConfig().getStringList("enabledPlayers");
+        return data.getStringList("enabledPlayers");
     }
 
     /**
@@ -347,8 +366,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
             return;
         }
         list.add(name);
-        getConfig().set("enabledPlayers", list);
-        saveConfig();
+        data.set("enabledPlayers", list);
+        saveData();
     }
 
     /**
@@ -360,8 +379,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         for ( Player player : Bukkit.getOnlinePlayers() ) {
             list.add(player.getName());
         }
-        getConfig().set("enabledPlayers", list);
-        saveConfig();
+        data.set("enabledPlayers", list);
+        saveData();
     }
 
     /**
@@ -374,8 +393,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
             return;
         }
         list.add(name);
-        getConfig().set("enabledPlayers", list);
-        saveConfig();
+        data.set("enabledPlayers", list);
+        saveData();
     }
 
     /**
@@ -387,8 +406,18 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         if ( list.isEmpty() ) {
             return;
         }
-        getConfig().set("enabledPlayers", new ArrayList<String>());
-        saveConfig();
+        data.set("enabledPlayers", new ArrayList<String>());
+        saveData();
     }
 
+    /**
+     *
+     */
+    private void saveData() {
+        try {
+            data.save(data_file);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

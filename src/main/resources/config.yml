@@ -1,7 +1,0 @@
-# ${project.name} v${project.version}
-# @author     ucchy
-# @license    GPLv3
-# @copyright  Copyright ucchy 2014
-
-isAllEnabled: false
-enabledPlayers: []
