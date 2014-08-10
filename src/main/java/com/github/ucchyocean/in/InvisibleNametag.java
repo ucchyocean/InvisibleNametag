@@ -18,10 +18,12 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
-import org.bukkit.entity.Squid;
+import org.bukkit.entity.Slime;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -38,6 +40,7 @@ import org.bukkit.scheduler.BukkitRunnable;
 public class InvisibleNametag extends JavaPlugin implements Listener {
 
     private static final String DATA_FILE_NAME = "data.yml";
+    private static final EntityType RIDING_ENTITY = EntityType.SLIME;
 
     private File data_file;
     private YamlConfiguration data;
@@ -70,11 +73,11 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         for ( String name : getEnabledPlayers() ) {
             Player target = getPlayer(name);
             if ( target != null ) {
-                setSquid(target);
+                rideEntity(target);
             }
         }
         if ( isAllEnabled() ) {
-            setSquidAll();
+            rideEntityAll();
         }
     }
 
@@ -84,7 +87,9 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
      */
     @Override
     public void onDisable() {
-        removeGarbageSquid();
+
+        // ゴミとして残っているエンティティを削除する
+        removeGarbageLivingEntities();
     }
 
     /**
@@ -111,13 +116,13 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
                     return true;
                 }
 
-                setSquid(target);
+                rideEntity(target);
                 addEnabledPlayers(name);
                 sender.sendMessage(ChatColor.YELLOW + "set invisible nametag of " + name + ".");
                 return true;
             }
 
-            setSquidAll();
+            rideEntityAll();
             setAllEnabled(true);
             addAllEnabledPlayers();
             sender.sendMessage(ChatColor.YELLOW + "set invisible nametag of all players.");
@@ -141,14 +146,14 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
                     return true;
                 }
 
-                removeSquid(target);
+                removeEntity(target);
                 removeEnabledPlayers(name);
                 sender.sendMessage(ChatColor.YELLOW + "set visible nametag of " + name + ".");
                 return true;
             }
 
-            removeSquidAll();
-            removeGarbageSquid();
+            removeEntityAll();
+            removeGarbageLivingEntities();
             setAllEnabled(false);
             removeAllEnabledPlayers();
             sender.sendMessage(ChatColor.YELLOW + "set visible nametag of all players.");
@@ -165,8 +170,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
 
-        // 死亡したプレイヤーにイカが載っているなら、イカを除去する
-        removeSquid(event.getEntity());
+        // 死亡したプレイヤーにイカが載っているなら、エンティティを除去する
+        removeEntity(event.getEntity());
     }
 
     /**
@@ -176,7 +181,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerRespawn(PlayerRespawnEvent event) {
 
-        // 必要に応じて、リスポーンの1tick後にイカを載せ直す。
+        // 必要に応じて、リスポーンの1tick後にエンティティを載せ直す。
 
         if ( !isAllEnabled() &&
                 !getEnabledPlayers().contains(event.getPlayer().getName()) ) {
@@ -186,7 +191,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         final Player player = event.getPlayer();
         new BukkitRunnable() {
             public void run() {
-                setSquid(player);
+                rideEntity(player);
             }
         }.runTaskLater(this, 1);
     }
@@ -198,8 +203,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
 
-        // 離脱するプレイヤーにイカが載っているなら、イカを除去する
-        removeSquid(event.getPlayer());
+        // 離脱するプレイヤーにイカが載っているなら、エンティティを除去する
+        removeEntity(event.getPlayer());
     }
 
     /**
@@ -209,7 +214,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     @EventHandler
     public void onPlayerJoin(PlayerJoinEvent event) {
 
-        // 必要に応じて、新しく参加したプレイヤーにイカを載せる
+        // 必要に応じて、新しく参加したプレイヤーにエンティティを載せる
 
         if ( !isAllEnabled() &&
                 !getEnabledPlayers().contains(event.getPlayer().getName()) ) {
@@ -219,26 +224,46 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
         final Player player = event.getPlayer();
         new BukkitRunnable() {
             public void run() {
-                setSquid(player);
+                rideEntity(player);
             }
         }.runTaskLater(this, 1);
     }
 
     /**
-     * 全プレイヤーにイカを載せて、ネームタグを隠す
+     * エンティティが攻撃を受けた時に呼び出されるメソッド
+     * @param event
      */
-    private void setSquidAll() {
+    @EventHandler
+    public void onEntityDamage(EntityDamageEvent event) {
 
-        for ( Player player : Bukkit.getOnlinePlayers() ) {
-            setSquid(player);
+        Entity entity = event.getEntity();
+
+        if ( entity.getType() == RIDING_ENTITY ) {
+            LivingEntity le = (LivingEntity)entity;
+            Entity vehicle = le.getVehicle();
+            if ( le.hasPotionEffect(PotionEffectType.INVISIBILITY) &&
+                    vehicle != null &&
+                    vehicle.getType() == EntityType.PLAYER ) {
+                event.setCancelled(true);
+            }
         }
     }
 
     /**
-     * 指定されたプレイヤーにイカを載せて、ネームタグを隠す
+     * 全プレイヤーにエンティティを載せて、ネームタグを隠す
+     */
+    private void rideEntityAll() {
+
+        for ( Player player : Bukkit.getOnlinePlayers() ) {
+            rideEntity(player);
+        }
+    }
+
+    /**
+     * 指定されたプレイヤーにエンティティを載せて、ネームタグを隠す
      * @param player
      */
-    private void setSquid(Player player) {
+    private void rideEntity(final Player player) {
 
         // 指定されたプレイヤーが無効な場合は何もしない
         if ( player == null || !player.isOnline() ) {
@@ -251,72 +276,100 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
             return;
         }
 
-        // イカカワイイデス
-        Squid squid = (Squid)player.getWorld().spawnEntity(
-                player.getLocation(), EntityType.SQUID);
+        // 頭に載せるエンティティ生成
+        final LivingEntity le = (LivingEntity)player.getWorld().spawnEntity(
+                player.getLocation(), RIDING_ENTITY );
 
-        // 透明にする、無敵にする
+        // スライムの場合は、最小サイズに変更する
+        if ( le.getType() == EntityType.SLIME ) {
+            Slime slime = (Slime)le;
+            slime.setSize(1);
+        }
+
+        // 透明にする
         PotionEffect effect = new PotionEffect(
                 PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, true);
-        squid.addPotionEffect(effect, true);
-        squid.setNoDamageTicks(Integer.MAX_VALUE);
+        le.addPotionEffect(effect, true);
 
-        // イカを載せる
-        player.setPassenger(squid);
+        // 載せる
+        player.setPassenger(le);
+
+        // 不意に降ろされたときのために、再度載せ直すスケジュールタスクを実行しつづける
+        new BukkitRunnable() {
+
+            @Override
+            public void run() {
+
+                if ( le.isDead() ) {
+                    cancel();
+                }
+
+                Entity vehicle = le.getVehicle();
+                if ( vehicle == null || !vehicle.equals(player) ) {
+                    if ( player.isOnline() ) {
+                        player.setPassenger(le);
+                    } else {
+                        le.remove();
+                        cancel();
+                    }
+                }
+            }
+
+        }.runTaskTimer(this, 10, 1);
     }
 
     /**
-     * 全プレイヤーに載っているイカを削除する
+     * 全プレイヤーに載っているエンティティを削除する
      */
-    private void removeSquidAll() {
+    private void removeEntityAll() {
 
         for ( Player player : Bukkit.getOnlinePlayers() ) {
-            removeSquid(player);
+            removeEntity(player);
         }
     }
 
     /**
-     * 指定されたプレイヤーに載っているイカを削除する
+     * 指定されたプレイヤーに載っているエンティティを削除する
      * @param player
      */
-    private void removeSquid(Player player) {
+    private void removeEntity(Player player) {
 
         // 指定されたプレイヤーが無効な場合は何もしない
         if ( player == null || !player.isOnline() ) {
             return;
         }
 
-        // 何も載っていなかったり、イカじゃないなら、何もしない
+        // 何も載っていなかったり、対象エンティティじゃないなら、何もしない
         Entity riding = player.getPassenger();
-        if ( riding == null || riding.getType() != EntityType.SQUID ) {
+        if ( riding == null || riding.getType() != RIDING_ENTITY ) {
             return;
         }
 
-        // イカ消去
+        // エンティティ消去
         riding.remove();
     }
 
     /**
-     * ゴミとして残ったイカを削除する
+     * ゴミとして残ったLivingEntityを削除する
      */
-    private void removeGarbageSquid() {
+    private void removeGarbageLivingEntities() {
 
         int count = 0;
         for ( World world : Bukkit.getWorlds() ) {
             for ( Entity entity : world.getEntities() ) {
-                if ( entity.getType() == EntityType.SQUID ) {
-                    Squid squid = (Squid)entity;
-                    Entity vehicle = squid.getVehicle();
-                    if ( squid.hasPotionEffect(PotionEffectType.INVISIBILITY) &&
+                if ( entity.getType() == RIDING_ENTITY ) {
+                    LivingEntity le = (LivingEntity)entity;
+                    Entity vehicle = le.getVehicle();
+                    if ( le.hasPotionEffect(PotionEffectType.INVISIBILITY) &&
                             (vehicle == null || vehicle.getType() != EntityType.PLAYER) ) {
-                        squid.remove();
+                        le.remove();
                         count++;
                     }
                 }
             }
         }
 
-        getLogger().info("Removed " + count + " garbage squids.");
+        getLogger().info("Removed " + count + " garbage entities.");
     }
 
     /**
@@ -335,14 +388,16 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
-     * @return isAllEnabled
+     * 全体に対する設定が有効になっているかどうかを返す
+     * @return isAllEnabled 全体設定が有効かどうか
      */
     private boolean isAllEnabled() {
         return data.getBoolean("isAllEnabled", false);
     }
 
     /**
-     * @param isAllEnabled isAllEnabled
+     * 全体設定を変更し、data.ymlに設定を保存する。
+     * @param isAllEnabled 全体設定
      */
     private void setAllEnabled(boolean isAllEnabled) {
         data.set("isAllEnabled", isAllEnabled);
@@ -350,14 +405,16 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
-     * @return enabledPlayers
+     * プレイヤーに対する設定が有効になっているプレイヤー名のリスト返す
+     * @return 設定が有効なプレイヤーのプレイヤー名リスト
      */
     private List<String> getEnabledPlayers() {
         return data.getStringList("enabledPlayers");
     }
 
     /**
-     * @param name
+     * 指定したプレイヤーに対する設定を有効リストに追加して、data.ymlに設定を保存する。
+     * @param name 追加するプレイヤー名
      */
     private void addEnabledPlayers(String name) {
 
@@ -371,7 +428,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
-     *
+     * 現在サーバーに接続している全てのプレイヤーを有効リストに追加して、
+     * data.ymlに設定を保存する。
      */
     private void addAllEnabledPlayers() {
 
@@ -384,7 +442,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
-     * @param name
+     * 指定したプレイヤー名を有効リストから削除し、data.ymlに設定を保存する。
+     * @param name 削除するプレイヤー名
      */
     private void removeEnabledPlayers(String name) {
 
@@ -398,7 +457,8 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
-     *
+     * 有効リストから全てのプレイヤー名を削除して、からっぽにし、
+     * data.ymlに設定を保存する。
      */
     private void removeAllEnabledPlayers() {
 
@@ -411,7 +471,7 @@ public class InvisibleNametag extends JavaPlugin implements Listener {
     }
 
     /**
-     *
+     * data.ymlに設定を保存する。
      */
     private void saveData() {
         try {
